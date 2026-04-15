@@ -2,6 +2,14 @@
 
 A Python CLI that scans ecommerce product pages, runs configurable compliance rules (JSON), optional **custom regex keyword** checks, and generates JSON + PDF reports.
 
+## Report preview
+
+Synthetic demo visuals (not from a live scan — placeholder jurisdiction, **example.com** URLs only, no real company names):
+
+![Compliance audit report — cover and executive summary](assets/report-showcase-summary.png)
+
+![Compliance audit report — page-level findings excerpt](assets/report-showcase-findings.png)
+
 ## What it does
 
 - scans one or many product URLs
