@@ -5,7 +5,7 @@ plus optional custom keyword (regex) checks.
 
 What it does
 ------------
-- Scans one or many product URLs (or a sitemap).
+- Scans one or many product URLs (or a sitemap); optional collection listing pages from sitemaps.
 - Applies rule-based checks (e.g. federal / state hemp–CBD patterns in ``rules/state_rules.json``).
 - Optionally flags pages that match (or omit) user-supplied regex patterns via ``--keyword`` /
   ``--require-keyword``.
@@ -125,6 +125,17 @@ def _is_likely_product_page(url: str) -> bool:
     return "/products/" in f"{path}/"
 
 
+def _is_likely_collection_page(url: str) -> bool:
+    """Heuristic for Shopify-style collection listing pages."""
+    try:
+        path = urlparse(url).path.lower().rstrip("/")
+    except ValueError:
+        return False
+    if not path or path == "/":
+        return False
+    return "/collections/" in f"{path}/"
+
+
 def _parse_sitemap_document(content: bytes) -> tuple[list[str], bool]:
     """Return (all loc hrefs, is_sitemap_index)."""
     root = ET.fromstring(content)
@@ -137,46 +148,156 @@ def _parse_sitemap_document(content: bytes) -> tuple[list[str], bool]:
     return locs, _split_xml_tag(root.tag) == "sitemapindex"
 
 
-def urls_from_sitemap(sitemap_url: str, limit: int = 100) -> List[str]:
+def _harvest_from_urlset(
+    urlset_url: str,
+    predicate,
+    max_n: int,
+    seen: set[str],
+) -> list[str]:
+    """Pull up to max_n page URLs from one urlset document; skip URLs not matching predicate."""
+    if max_n <= 0:
+        return []
+    resp = requests.get(urlset_url, headers={"User-Agent": DEFAULT_UA}, timeout=TIMEOUT)
+    resp.raise_for_status()
+    locs, is_index = _parse_sitemap_document(resp.content)
+    if is_index:
+        return []
+    out: list[str] = []
+    for u in locs:
+        if len(out) >= max_n:
+            break
+        if not predicate(u):
+            continue
+        if u in seen:
+            continue
+        seen.add(u)
+        out.append(u)
+    return out
+
+
+def _index_child_sitemap_urls(index_root: str) -> tuple[list[str], list[str]]:
+    """
+    Expand sitemap index(es); return (product child urlset URLs, collection child urlset URLs).
+    Other child sitemaps are ignored unless they are nested sitemap indexes (then queued).
+    """
+    product_sm: list[str] = []
+    collection_sm: list[str] = []
+    visited: set[str] = set()
+    q: deque[str] = deque([index_root])
+    while q:
+        u = q.popleft()
+        if u in visited:
+            continue
+        visited.add(u)
+        resp = requests.get(u, headers={"User-Agent": DEFAULT_UA}, timeout=TIMEOUT)
+        resp.raise_for_status()
+        locs, is_index = _parse_sitemap_document(resp.content)
+        if not is_index:
+            continue
+        for loc in locs:
+            ll = loc.lower()
+            if "product" in ll:
+                product_sm.append(loc)
+            elif "collection" in ll:
+                collection_sm.append(loc)
+            else:
+                try:
+                    sub = requests.get(loc, headers={"User-Agent": DEFAULT_UA}, timeout=TIMEOUT)
+                    sub.raise_for_status()
+                    _, sub_is_index = _parse_sitemap_document(sub.content)
+                    if sub_is_index:
+                        q.append(loc)
+                except Exception:
+                    pass
+    return product_sm, collection_sm
+
+
+def _fill_sitemap_need(
+    urlset_urls: list[str],
+    predicate,
+    need: int,
+    seen: set[str],
+    bucket: list[str],
+) -> int:
+    """Append up to ``need`` URLs into ``bucket``; return remaining unfilled count."""
+    for sm in sorted(urlset_urls):
+        if need <= 0:
+            break
+        got = _harvest_from_urlset(sm, predicate, need, seen)
+        bucket.extend(got)
+        need -= len(got)
+    return need
+
+
+def urls_from_sitemap(
+    sitemap_url: str,
+    limit: int = 100,
+    include_collections: bool = False,
+) -> List[str]:
     """
     Collect page URLs from a sitemap URL or sitemap index (nested sitemaps).
 
     Root ``sitemap.xml`` files often list child sitemaps (products, pages, …)
-    rather than individual URLs. Those child documents are fetched until
-    ``limit`` page URLs are collected. Product sitemaps are tried first when
-    present (typical for Shopify-style indexes).
+    rather than individual URLs. Product child sitemaps are preferred.
+
+    With ``include_collections=True``, collection listing pages (e.g. paths
+    containing ``/collections/``) are also harvested from collection child
+    sitemaps, splitting ``limit`` roughly evenly between products and
+    collections when both exist. Spillover fills unused slots from the other
+    side.
     """
-    collected: list[str] = []
-    seen_pages: set[str] = set()
-    visited: set[str] = set()
-    queue: deque[str] = deque([sitemap_url])
+    seen: set[str] = set()
+    head = requests.get(sitemap_url, headers={"User-Agent": DEFAULT_UA}, timeout=TIMEOUT)
+    head.raise_for_status()
+    _, is_index = _parse_sitemap_document(head.content)
 
-    while queue and len(collected) < limit:
-        url = queue.popleft()
-        if url in visited:
-            continue
-        visited.add(url)
-        resp = requests.get(url, headers={"User-Agent": DEFAULT_UA}, timeout=TIMEOUT)
-        resp.raise_for_status()
-        locs, is_index = _parse_sitemap_document(resp.content)
-        if is_index:
-            ordered = sorted(
-                locs,
-                key=lambda u: (
-                    0 if "product" in u.lower() else 1,
-                    u,
-                ),
-            )
-            queue.extend(ordered)
+    if not is_index:
+        if "collection" in sitemap_url.lower():
+            pred = _is_likely_collection_page
         else:
-            for u in locs:
-                if not _is_likely_product_page(u):
-                    continue
-                if u not in seen_pages and len(collected) < limit:
-                    seen_pages.add(u)
-                    collected.append(u)
+            pred = _is_likely_product_page
+        return _harvest_from_urlset(sitemap_url, pred, limit, seen)
 
-    return collected
+    product_sm, collection_sm = _index_child_sitemap_urls(sitemap_url)
+
+    if not include_collections:
+        out: list[str] = []
+        for sm in sorted(product_sm):
+            out.extend(_harvest_from_urlset(sm, _is_likely_product_page, limit - len(out), seen))
+            if len(out) >= limit:
+                break
+        return out[:limit]
+
+    if product_sm and not collection_sm:
+        p_budget, c_budget = limit, 0
+    elif collection_sm and not product_sm:
+        p_budget, c_budget = 0, limit
+    else:
+        p_budget = (limit + 1) // 2
+        c_budget = limit // 2
+
+    products: list[str] = []
+    cols: list[str] = []
+
+    for sm in sorted(product_sm):
+        if len(products) >= p_budget:
+            break
+        products.extend(
+            _harvest_from_urlset(sm, _is_likely_product_page, p_budget - len(products), seen)
+        )
+
+    for sm in sorted(collection_sm):
+        if len(cols) >= c_budget:
+            break
+        cols.extend(
+            _harvest_from_urlset(sm, _is_likely_collection_page, c_budget - len(cols), seen)
+        )
+
+    need = limit - len(products) - len(cols)
+    need = _fill_sitemap_need(product_sm, _is_likely_product_page, need, seen, products)
+    need = _fill_sitemap_need(collection_sm, _is_likely_collection_page, need, seen, cols)
+    out = products + cols
+    return out[:limit]
 
 def normalize_text(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip().lower()
@@ -527,6 +648,12 @@ def main() -> int:
     parser.add_argument("--url-file", help="Plain-text file with one URL per line")
     parser.add_argument("--sitemap", help="Sitemap URL to pull URLs from")
     parser.add_argument("--sitemap-limit", type=int, default=50)
+    parser.add_argument(
+        "--include-collections",
+        action="store_true",
+        help="With --sitemap, also scan collection listing pages (/collections/…) from collection sitemaps "
+        "(splits URL budget between products and collections).",
+    )
     parser.add_argument("--out-pdf", default="compliance_report.pdf")
     parser.add_argument("--out-json", default="compliance_report.json")
     parser.add_argument("--drive-folder-id", default=None)
@@ -568,7 +695,13 @@ def main() -> int:
                 if line.strip() and not line.strip().startswith("#")
             )
     if args.sitemap:
-        urls.extend(urls_from_sitemap(args.sitemap, limit=args.sitemap_limit))
+        urls.extend(
+            urls_from_sitemap(
+                args.sitemap,
+                limit=args.sitemap_limit,
+                include_collections=args.include_collections,
+            )
+        )
 
     deduped = []
     seen = set()

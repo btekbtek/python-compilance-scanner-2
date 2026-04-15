@@ -5,7 +5,7 @@ A Python CLI that scans ecommerce product pages, runs configurable compliance ru
 ## What it does
 
 - scans one or many product URLs
-- can pull URLs from a sitemap (including nested sitemap indexes)
+- can pull URLs from a sitemap (including nested sitemap indexes); optional **`--include-collections`** adds `/collections/…` listing pages from collection sitemaps
 - checks page text and visible links against `rules/state_rules.json`
 - optional CLI patterns:
   - `--keyword REGEX` — flag pages where the pattern **matches** (e.g. risky/forbidden terms)
@@ -72,6 +72,16 @@ python3 cbd_thc_compliance_auditor.py \
   --sitemap-limit 25
 ```
 
+Shopify-style sites expose separate **product** and **collection** child sitemaps. By default only product detail pages (`/products/…`) are harvested. To also scan **collection** listing pages (`/collections/…`), split roughly half-and-half with the same total `--sitemap-limit`:
+
+```bash
+python3 cbd_thc_compliance_auditor.py \
+  --state california \
+  --sitemap https://example.com/sitemap.xml \
+  --sitemap-limit 30 \
+  --include-collections
+```
+
 ### Scan from a text file
 
 Create `urls.txt` with one URL per line, then:
@@ -128,6 +138,6 @@ Supported check types:
 - add separate rule profiles for hemp ingestibles vs topicals vs inhalables
 - add more states with official source links
 - parse JSON-LD product data
-- scan collection pages and cart pages
+- scan cart / checkout pages
 - screenshot capture for evidence packs
 - CSV export for merchant remediation queue
