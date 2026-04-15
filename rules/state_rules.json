@@ -1,0 +1,221 @@
+{
+  "version": "2026-04-07",
+  "states": [
+    {
+      "key": "california",
+      "name": "California",
+      "notes": "Seeded with federal + California AB 45 / Prop 65 style rules. Expand for other states before relying on them."
+    },
+    {
+      "key": "template_other_state",
+      "name": "Template for other states",
+      "notes": "Placeholder profile. Add state-specific rules and official sources before use."
+    }
+  ],
+  "rules": [
+    {
+      "id": "fed-no-disease-claims",
+      "title": "Risky disease / treatment claim language",
+      "severity": "high",
+      "states": [
+        "all"
+      ],
+      "products": [
+        "all"
+      ],
+      "check": {
+        "type": "risky_text_present",
+        "patterns": [
+          "treat[s]?\\b",
+          "cure[s]?\\b",
+          "prevent[s]?\\b",
+          "diagnos(e|is)\\b",
+          "arthritis\\b",
+          "anxiety\\b",
+          "depression\\b",
+          "ptsd\\b",
+          "pain relief\\b",
+          "relieves pain\\b",
+          "inflammation\\b"
+        ]
+      },
+      "fail_summary": "The page contains claim language that may cause FDA to view the product as an unapproved drug or misbranded product.",
+      "pass_summary": "No obvious high-risk disease/treatment terms were detected.",
+      "recommendation": "Remove or soften disease/treatment claims, and ensure the page does not imply diagnosis, cure, mitigation, treatment, or prevention of disease.",
+      "sources": [
+        {
+          "title": "FDA: cannabis/CBD warning on treatment claims",
+          "url": "https://www.fda.gov/news-events/public-health-focus/fda-regulation-cannabis-and-cannabis-derived-products-including-cannabidiol-cbd"
+        },
+        {
+          "title": "FDA warning letter example for CBD lotion / pain-relief claims",
+          "url": "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/curaleaf-inc-579289-07222019"
+        }
+      ]
+    },
+    {
+      "id": "fed-hemp-lab-link",
+      "title": "Missing lab-results / COA link",
+      "severity": "medium",
+      "states": [
+        "all"
+      ],
+      "products": [
+        "cbd",
+        "mixed",
+        "thc",
+        "all"
+      ],
+      "check": {
+        "type": "missing_any_link",
+        "patterns": [
+          "coa",
+          "certificate",
+          "lab",
+          "test",
+          "results"
+        ]
+      },
+      "fail_summary": "No obvious lab-result / COA link was detected on the page.",
+      "pass_summary": "A possible lab-result / COA link was detected.",
+      "recommendation": "Add a clear, batch-aware COA or lab-results link on the product page, and verify the page explains how the customer can match the report to the product.",
+      "sources": [
+        {
+          "title": "California public notice: manufacturers must include a certificate of analysis",
+          "url": "https://www.cdph.ca.gov/Programs/OLS/CDPH%20Document%20Library/DPH-24-005-Public_Notice1.pdf"
+        }
+      ]
+    },
+    {
+      "id": "ca-hemp-fda-disclaimer",
+      "title": "Missing California hemp FDA disclaimer",
+      "severity": "medium",
+      "states": [
+        "california"
+      ],
+      "products": [
+        "cbd",
+        "mixed"
+      ],
+      "check": {
+        "type": "missing_any_text",
+        "patterns": [
+          "this product has not been evaluated by the fda",
+          "these statements have not been evaluated by the food and drug administration"
+        ]
+      },
+      "fail_summary": "The page does not appear to include a visible FDA disclaimer.",
+      "pass_summary": "A likely FDA disclaimer was detected.",
+      "recommendation": "Add a conspicuous FDA disclaimer on the product page and verify the same disclaimer appears where required in labels and downstream sales surfaces.",
+      "sources": [
+        {
+          "title": "CDPH AB 45 FAQ hub",
+          "url": "https://www.cdph.ca.gov/Programs/CEH/DFDCS/Pages/FDBPrograms/IHCPFAQS.aspx"
+        }
+      ]
+    },
+    {
+      "id": "ca-hemp-inhalable-ban",
+      "title": "California inhalable hemp sale risk",
+      "severity": "critical",
+      "states": [
+        "california"
+      ],
+      "products": [
+        "cbd",
+        "mixed",
+        "thc"
+      ],
+      "check": {
+        "type": "risky_text_present",
+        "patterns": [
+          "\\bvape\\b",
+          "\\bpre[- ]?roll\\b",
+          "\\bflower\\b",
+          "\\bsmokeable\\b",
+          "\\binhalable\\b"
+        ]
+      },
+      "fail_summary": "The page text suggests an inhalable hemp product, which raises a major California-specific risk.",
+      "pass_summary": "No obvious inhalable hemp terms were detected.",
+      "recommendation": "Review California rules carefully before offering inhalable hemp products for sale into California. Route any California traffic away from prohibited SKUs if needed.",
+      "sources": [
+        {
+          "title": "CDPH FAQ: industrial hemp inhalables may not be sold in California",
+          "url": "https://www.cdph.ca.gov/Programs/CEH/DFDCS/Pages/FDBPrograms/ProcessorandManufacturerFAQS.aspx"
+        },
+        {
+          "title": "CDPH public notice on inhalable industrial hemp",
+          "url": "https://www.cdph.ca.gov/Programs/OLS/CDPH%20Document%20Library/DPH-24-005-Public_Notice1.pdf"
+        }
+      ]
+    },
+    {
+      "id": "ca-thc-prop65-warning",
+      "title": "Possible missing California Prop 65 THC warning",
+      "severity": "high",
+      "states": [
+        "california"
+      ],
+      "products": [
+        "thc",
+        "mixed"
+      ],
+      "check": {
+        "type": "missing_any_text",
+        "patterns": [
+          "p65warnings\\.ca\\.gov",
+          "known to the state of california to cause birth defects or other reproductive harm",
+          "warning: consuming this product will expose you to thc"
+        ]
+      },
+      "fail_summary": "No obvious Prop 65 THC warning language was detected on the page.",
+      "pass_summary": "A likely Prop 65 THC warning was detected.",
+      "recommendation": "Review whether this product triggers a Prop 65 THC warning and, if so, place the warning conspicuously on the page and packaging using counsel-approved language.",
+      "sources": [
+        {
+          "title": "California Proposition 65: Cannabis and THC products",
+          "url": "https://www.p65warnings.ca.gov/products/cannabis-and-thc-products"
+        },
+        {
+          "title": "California Proposition 65 THC fact sheet",
+          "url": "https://www.p65warnings.ca.gov/fact-sheets/thc-d9-tetrahydrocannabinol-or-delta-9-tetrahydrocannabinol"
+        }
+      ]
+    },
+    {
+      "id": "ca-thc-disclosure",
+      "title": "Missing THC percentage / content disclosure",
+      "severity": "medium",
+      "states": [
+        "california"
+      ],
+      "products": [
+        "cbd",
+        "thc",
+        "mixed"
+      ],
+      "check": {
+        "type": "missing_any_text",
+        "patterns": [
+          "0\\.3%\\s*thc",
+          "total thc",
+          "delta[- ]?9",
+          "delta[- ]?8",
+          "thc-free",
+          "broad spectrum",
+          "full spectrum"
+        ]
+      },
+      "fail_summary": "No obvious THC-content disclosure or spectrum disclosure was detected.",
+      "pass_summary": "A likely THC-content or spectrum disclosure was detected.",
+      "recommendation": "Add plain-language disclosure about THC content or spectrum and ensure product details match the linked lab report and label claims.",
+      "sources": [
+        {
+          "title": "CDPH public notice: total THC constraints under AB 45",
+          "url": "https://www.cdph.ca.gov/Programs/OLS/CDPH%20Document%20Library/DPH-24-005-Public_Notice1.pdf"
+        }
+      ]
+    }
+  ]
+}

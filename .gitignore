@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.py[cod]
+.Python
+compliance_report.pdf
+*_compliance_report.pdf
+compliance_report.json
+*_compliance_report.json
+generated/

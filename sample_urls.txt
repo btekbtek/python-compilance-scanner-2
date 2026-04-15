@@ -1,0 +1,2 @@
+# One URL per line (example placeholders — replace with your product pages)
+https://example.com/products/sample-product
